@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カード管理</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f5f5f5;
+  padding: 12px;
+}
+h1 { font-size: 20px; }
+
+.input-area, .filter-area {
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+input[type="text"], input[type="number"], select {
+  padding: 6px;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+input[type="number"] { width: 50px; }
+
+label { margin-right: 6px; font-size: 13px; }
+
+button {
+  padding: 4px 8px;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  font-size: 13px;
+}
+
+th { background: #eee; }
+
+img { max-width: 40px; }
+
+.card-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.count-input {
+  width: 50px;
+  font-size: 12px;
+}
+
+.pack-item {
+  margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+
+<h1>カード管理</h1>
+
+<div class="input-area">
+  <input id="name" type="text" placeholder="カード名"><br>
+
+  <strong>クラス</strong><br>
+  <div id="classArea">
+    <label><input type="checkbox" value="エルフ">エルフ</label>
+    <label><input type="checkbox" value="ロイヤル">ロイヤル</label>
+    <label><input type="checkbox" value="ウィッチ">ウィッチ</label>
+    <label><input type="checkbox" value="ドラゴン">ドラゴン</label>
+    <label><input type="checkbox" value="ナイトメア">ナイトメア</label>
+    <label><input type="checkbox" value="ビショップ">ビショップ</label>
+    <label><input type="checkbox" value="ニュートラル">ニュートラル</label>
+    <label><input type="checkbox" value="コラボ">コラボ</label>
+  </div>
+
+  <strong>カードパック</strong><br>
+  <input id="newPack" type="text" placeholder="新しいカードパック名">
+  <button onclick="addPack()">追加</button>
+
+  <div id="packArea"></div>
+  <hr>
+  <div id="packEditArea"></div>
+
+  <strong>種別</strong><br>
+  <label><input type="radio" name="realType" value="本物" checked>本物</label>
+  <label><input type="radio" name="realType" value="プロキシ">プロキシ</label><br>
+
+  <input id="count" type="number" min="1" placeholder="枚数">
+  <input id="image" type="file" accept="image/*"><br>
+
+  <button onclick="addCard()">追加</button>
+</div>
+
+<div class="filter-area">
+  🔍 <input id="search" placeholder="カード名検索"><br>
+
+  <select id="filterClass">
+    <option value="">全クラス</option>
+    <option>エルフ</option><option>ロイヤル</option><option>ウィッチ</option>
+    <option>ドラゴン</option><option>ナイトメア</option>
+    <option>ビショップ</option><option>ニュートラル</option><option>コラボ</option>
+  </select>
+
+  <select id="filterType">
+    <option value="">全種別</option>
+    <option>本物</option>
+    <option>プロキシ</option>
+  </select>
+
+  <select id="filterPack">
+    <option value="">全パック</option>
+  </select>
+</div>
+
+<table>
+<thead>
+<tr>
+  <th>画</th>
+  <th>カード</th>
+  <th>種別</th>
+  <th>枚数</th>
+  <th>操作</th>
+</tr>
+</thead>
+<tbody id="cardList"></tbody>
+</table>
+
+<script>
+let cards = JSON.parse(localStorage.getItem("cards")) || [];
+let packs = JSON.parse(localStorage.getItem("packs")) || [];
+
+function saveAll() {
+  localStorage.setItem("cards", JSON.stringify(cards));
+  localStorage.setItem("packs", JSON.stringify(packs));
+}
+
+function renderPacks() {
+  const area = document.getElementById("packArea");
+  const edit = document.getElementById("packEditArea");
+  const filter = document.getElementById("filterPack");
+
+  area.innerHTML = "";
+  edit.innerHTML = "";
+  filter.innerHTML = `<option value="">全パック</option>`;
+
+  packs.forEach((p, i) => {
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="radio" name="pack" value="${p}">${p}`;
+    area.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "pack-item";
+    row.innerHTML = `
+      ${p}
+      <button onclick="movePack(${i}, -1)">↑</button>
+      <button onclick="movePack(${i}, 1)">↓</button>
+      <button onclick="deletePack(${i})">削除</button>
+    `;
+    edit.appendChild(row);
+
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    filter.appendChild(opt);
+  });
+}
+
+function render() {
+  const list = document.getElementById("cardList");
+  const search = document.getElementById("search").value.toLowerCase();
+  const fClass = document.getElementById("filterClass").value;
+  const fType = document.getElementById("filterType").value;
+  const fPack = document.getElementById("filterPack").value;
+
+  list.innerHTML = "";
+
+  cards.filter(c =>
+    (!search || c.name.toLowerCase().includes(search)) &&
+    (!fClass || c.classes.includes(fClass)) &&
+    (!fType || c.realType === fType) &&
+    (!fPack || c.pack === fPack)
+  ).forEach((card, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${card.image ? `<img src="${card.image}">` : ""}</td>
+      <td><div class="card-name">${card.name}</div></td>
+      <td>${card.realType}</td>
+      <td>
+        <input class="count-input" type="number" value="${card.count}"
+          onchange="updateCount(${index}, this.value)">
+      </td>
+      <td><button onclick="deleteCard(${index})">削除</button></td>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addPack() {
+  const input = document.getElementById("newPack");
+  const name = input.value.trim();
+  if (!name || packs.includes(name)) return;
+  packs.push(name);
+  input.value = "";
+  saveAll();
+  renderPacks();
+}
+
+function movePack(i, d) {
+  const t = i + d;
+  if (t < 0 || t >= packs.length) return;
+  [packs[i], packs[t]] = [packs[t], packs[i]];
+  saveAll();
+  renderPacks();
+}
+
+function deletePack(i) {
+  packs.splice(i, 1);
+  saveAll();
+  renderPacks();
+  render();
+}
+
+function addCard() {
+  const name = document.getElementById("name").value.trim();
+  const count = Number(document.getElementById("count").value);
+  const classes = Array.from(
+    document.querySelectorAll("#classArea input:checked")
+  ).map(c => c.value);
+  const packRadio = document.querySelector("input[name='pack']:checked");
+  const pack = packRadio ? packRadio.value : "";
+  const realType = document.querySelector("input[name='realType']:checked").value;
+  const imageInput = document.getElementById("image");
+
+  if (!name || !count || classes.length === 0) return;
+
+  const add = image => {
+    cards.push({ name, classes, pack, realType, count, image });
+    saveAll();
+    render();
+  };
+
+  if (imageInput.files.length) {
+    const r = new FileReader();
+    r.onload = () => add(r.result);
+    r.readAsDataURL(imageInput.files[0]);
+  } else add("");
+
+  document.querySelectorAll("input").forEach(i => i.value = "");
+  document.querySelectorAll("#classArea input").forEach(c => c.checked = false);
+}
+
+function updateCount(i, v) {
+  cards[i].count = Number(v);
+  saveAll();
+}
+
+function deleteCard(i) {
+  cards.splice(i, 1);
+  saveAll();
+  render();
+}
+
+document.querySelectorAll("#search, #filterClass, #filterType, #filterPack")
+  .forEach(el => el.addEventListener("input", render));
+
+renderPacks();
+render();
+</script>
+
+</body>
+</html>
